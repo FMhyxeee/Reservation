@@ -22,6 +22,13 @@ we would use gRPC as the service interface, below is the proto file:
         BLOCKED = 3;
     }
 
+    enum ReservationUpdateType {
+        UNKNOWN = 0;
+        INSERT = 1;
+        UPDATE = 2;
+        DELETE = 3;
+    }
+
     message Reservation {
         string id = 1;
         string user_id = 2;
@@ -44,6 +51,7 @@ we would use gRPC as the service interface, below is the proto file:
         rpc cancel(CancelRequest) returns (CancelResponse);
         rpc get(GetRequest) returns (GetResponse);
         rpc query(QueryRequest) returns (stream Reservation);
+        rpc listen(ListenRequest) returns (stream Reservation);
     }
 
     message ReserveRequest {
@@ -90,6 +98,13 @@ we would use gRPC as the service interface, below is the proto file:
 
     // No QueryResponse, use stream instead
 
+    message ListenRequest {}
+    message ListenResponse {
+        ReservationOp op = 1;
+        Reservation reservation = 2;
+    }
+
+
 
 
 ```
@@ -98,17 +113,66 @@ we would use gRPC as the service interface, below is the proto file:
 
 ```sql
     CREATE SCHEMA rsvp;
-    CREATE TYPE reservation_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
-    CREATE TABLE reservation (
+    CREATE TYPE rsvp.reservation_status AS ENUM ('unknown','pending','confirmed','blocked');
+    CREATE TYPE rsvp.reservation_update_type as ENUM ('unknown','insert','update','delete');
+    CREATE TABLE rsvp.reservation (
         id uuid NOT NULL DEFAULT uuid_generate_v4(),
         user_id varchar(64) NOT NULL,
-        status reservation_status NOT NULL,
-        resource_id uuid NOT NULL,
-        start timestamptz NOT NULL,
-        end timestamptz NOT NULL,
-        not TEXT
+        status rsvp.reservation_status NOT NULL default 'pending',
+
+        resource_id varchar(64) NOT NULL,
+        timespan tstzrange NOT NULL,
+
+
+        not TEXT,
+
+        CONSTRAINT reservation_pkey PRIMARY KEY (id),
+        CONSTRAINT reservation_conflict EXCLUDE USING gist (resource_id WITH =, timespan WITH &&)
     );
 
+    CREATE INDEX reservation_resource_id_idx ON rsvp.reservation (resource_id);
+    CREATE INDEX reservation_user_id_idx ON rsvp.reservation (user_id);
+
+
+    -- reservation change queue
+    CREATE TABLE rsvp.reservation_change (
+        id SERIAL NOT NULL,
+        reservation_id uuid NOT NULL,
+        op rsvp.reservation_update_type NOT NULL,
+    );
+
+    -- if user_id is null, find all reservations within during for the resource
+    -- if resource_id is null, find all reservations within during for the user
+    -- if both are null, find all reservations within during
+    -- if both set, find all reservations within during for the resource and user
+    CREATE OR REPLACE FUNCTION rsvp.query(uid text, rid text, during:tstzrange)
+    RETURNS TABLE resp.reservation AS $$ $$ LANGUAGE plgsql;
+
+    CREATE OR REPLACE FUNCTION resp.reservation_trigger() RETURNS trigger AS 
+    $$ 
+    BEGIN
+        IF TG_OP = "INSERT" THEN
+            -- update reservation_changes
+            INSERT INTO rsvp.reservation_change (reservation_id, op) VALUES (NEW.id, 'create');
+
+        ELSEIF TG_OP = "UPDATE" THEN
+            -- if status changed, update reservation_changes
+            IF OLD.status <> NEW.status THEN
+                INSERT INTO rsvp.reservation_change (reservation_id, op) VALUES (NEW.id, 'update');
+            END IF;
+        ELSEIF TG_OP = "DELETE" THEN
+            -- update reservation_changes
+            INSERT INTO rsvp.reservation_change (reservation_id, op) VALUES (OLD.id, 'delete');
+
+        END IF;
+
+        NOTIFY reservation_update;
+        RETURN NULL;
+    END;
+    $$ LANGUAGE plpgsql;
+    CREATE TRIGGER reservation_trigger 
+        AFTER INSERT OR UPDATE OR DELETE ON rsvp.reservation
+        FOR EACH ROW EXECUTE PROCEDURE resp.reservation_trigger();
 
 ```
 
