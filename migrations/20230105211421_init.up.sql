@@ -1,0 +1,3 @@
+
+CREATE SCHEMA rsvp;
+CREATE EXTENSION btree_gist;
