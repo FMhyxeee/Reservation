@@ -1,8 +1,8 @@
 
 -- resevation change queue
 CREATE TABLE rsvp.reservation_changes (
-    id SERIAL NOT NULL,
-    reservation_id BIGSERIAL NOT NULL,
+    id uuid  NOT NULL DEFAULT gen_random_uuid(),
+    reservation_id TEXT NOT NULL,
     old JSONB,
     new JSONB,
     op rsvp.reservation_update_type NOT NULL,
