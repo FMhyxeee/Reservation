@@ -1,9 +1,9 @@
-use abi::convert_to_utc_time;
+use abi::ReservationError;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{postgres::types::PgRange, types::Uuid, PgPool, Row};
 
-use crate::{ReservationError, ReservationId, ReservationManager, Rsvp};
+use crate::{ReservationId, ReservationManager, Rsvp};
 
 #[async_trait]
 impl Rsvp for ReservationManager {
@@ -11,17 +11,19 @@ impl Rsvp for ReservationManager {
         &self,
         mut rsvp: abi::Reservation,
     ) -> Result<abi::Reservation, ReservationError> {
-        if rsvp.start.is_none() || rsvp.end.is_none() {
-            return Err(ReservationError::InvalidTimespan);
-        }
+        rsvp.validate()?;
 
-        let start = convert_to_utc_time(rsvp.start.as_ref().unwrap().clone());
-        let end = convert_to_utc_time(rsvp.end.as_ref().unwrap().clone());
+        // let start = convert_to_utc_time(rsvp.start.as_ref().unwrap().clone());
+        // let end = convert_to_utc_time(rsvp.end.as_ref().unwrap().clone());
+
+        // let Range{ start, end} = rsvp.get_timestamp();
 
         let status = abi::ReservationStatus::from_i32(rsvp.status)
             .unwrap_or(abi::ReservationStatus::Pending);
 
-        let timespan: PgRange<DateTime<Utc>> = (start..end).into();
+        // let timespan: PgRange<DateTime<Utc>> = (start..end).into();
+
+        let timespan: PgRange<DateTime<Utc>> = rsvp.get_timestamp().into();
 
         // generate a insert sql for the reservation
 
@@ -79,7 +81,8 @@ impl ReservationManager {
 
 #[cfg(test)]
 mod tests {
-    use abi::convert_to_timestamp;
+
+    use abi::Reservation;
     use chrono::FixedOffset;
 
     use super::*;
@@ -90,18 +93,50 @@ mod tests {
         let start: DateTime<FixedOffset> = "2022-12-24T12:00:00-0700".parse().unwrap();
         let end: DateTime<FixedOffset> = "2022-12-28T12:00:00-0700".parse().unwrap();
 
-        let rsvp = abi::Reservation {
-            id: "".to_string(),
-            user_id: "first_id".to_string(),
-            resource_id: "ocean-view-room-731".to_string(),
-            start: Some(convert_to_timestamp(start.with_timezone(&Utc))),
-            end: Some(convert_to_timestamp(end.with_timezone(&Utc))),
-            status: abi::ReservationStatus::Pending as i32,
-            note: "I'll arrive at 3pm. Please help to upgrade to executive room if possible"
-                .to_string(),
-        };
+        let rsvp = Reservation::new_pending(
+            "first_id",
+            "ocean-view-room-731",
+            start,
+            end,
+            "I'll arrive at 3pm. Please help to upgrade to executive room if possible",
+        );
+
+        // let rsvp = abi::Reservation {
+        //     id: "".to_string(),
+        //     user_id: "first_id".to_string(),
+        //     resource_id: "ocean-view-room-731".to_string(),
+        //     start: Some(convert_to_timestamp(start.with_timezone(&Utc))),
+        //     end: Some(convert_to_timestamp(end.with_timezone(&Utc))),
+        //     status: abi::ReservationStatus::Pending as i32,
+        //     note: "I'll arrive at 3pm. Please help to upgrade to executive room if possible"
+        //         .to_string(),
+        // };
 
         let rsvp = manager.reserve(rsvp).await.unwrap();
         assert!(!rsvp.id.is_empty());
+    }
+
+    #[sqlx_database_tester::test(pool(variable = "migrated_pool", migrations = "../migrations"))]
+    async fn reserve_conflict_reservation_should_reject() {
+        let manager = ReservationManager::new(migrated_pool.clone());
+        let rsvp1 = Reservation::new_pending(
+            "first_id",
+            "ocean-view-room-731",
+            "2022-12-24T12:00:00-0700".parse().unwrap(),
+            "2022-12-28T12:00:00-0700".parse().unwrap(),
+            "hello",
+        );
+
+        let resp2 = Reservation::new_pending(
+            "second_id",
+            "ocean-view-room-731",
+            "2022-12-25T12:00:00-0700".parse().unwrap(),
+            "2022-12-27T12:00:00-0700".parse().unwrap(),
+            "hello2",
+        );
+
+        let _rsvp1 = manager.reserve(rsvp1).await.unwrap();
+        let resp2 = manager.reserve(resp2).await.unwrap_err();
+        println!("{:?}", resp2);
     }
 }
