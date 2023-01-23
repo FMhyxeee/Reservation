@@ -17,7 +17,7 @@ impl Reservation {
         Self {
             id: "".to_string(),
             user_id: uid.into(),
-            status: ReservationStatus::Pending as _,
+            status: ReservationStatus::Pending as i32,
             resource_id: rid.into(),
             start: Some(convert_to_timestamp(start.with_timezone(&Utc))),
             end: Some(convert_to_timestamp(end.with_timezone(&Utc))),
