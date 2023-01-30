@@ -162,7 +162,6 @@ mod tests {
     #[test]
     fn conflict_error_message_should_parse() {
         let conflict = TEST_TEXT.parse::<ReservationConflictInfo>().unwrap();
-        println!("{:?}", conflict);
         match conflict {
             ReservationConflictInfo::Parsed(conflict) => {
                 assert_eq!(conflict.new.rid, "ocean-view-room-731");
