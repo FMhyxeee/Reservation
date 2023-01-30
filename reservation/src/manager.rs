@@ -155,7 +155,7 @@ mod tests {
             assert_eq!(info.old.start.to_rfc3339(), "2022-12-24T19:00:00+00:00");
             assert_eq!(info.old.end.to_rfc3339(), "2022-12-28T19:00:00+00:00");
         } else {
-            println!("{:?}", err);
+            println!("{err:?}");
             panic!("expect conflict reservation error");
         }
     }
