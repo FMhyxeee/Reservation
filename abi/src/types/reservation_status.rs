@@ -1,6 +1,17 @@
 use core::fmt;
 
-use crate::ReservationStatus;
+use crate::{ReservationStatus, RsvpStatus};
+
+impl From<RsvpStatus> for ReservationStatus {
+    fn from(value: RsvpStatus) -> Self {
+        match value {
+            RsvpStatus::Pending => ReservationStatus::Pending,
+            RsvpStatus::Blocked => ReservationStatus::Blocked,
+            RsvpStatus::Confirmed => ReservationStatus::Confirmed,
+            RsvpStatus::Unknown => ReservationStatus::Unknown,
+        }
+    }
+}
 
 impl fmt::Display for ReservationStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
