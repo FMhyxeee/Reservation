@@ -73,10 +73,21 @@ impl Rsvp for ReservationManager {
         Ok(status)
     }
 
-    async fn delete(&self, _id: ReservationId) -> Result<(), ReservationError> {
-        todo!()
+    // 根据ID删除预约
+    async fn delete(&self, id: ReservationId) -> Result<(), ReservationError> {
+        let id = Uuid::parse_str(&id).map_err(|_| ReservationError::InvalidReservationId(id))?;
+        let result = sqlx::query("DELETE FROM rsvp.reservations WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        if result.rows_affected() == 0 {
+            return Err(ReservationError::ReservationNotFound(id.to_string()));
+        } else {
+            return Ok(());
+        }
     }
 
+    // 查看某个Reservation
     async fn get(&self, _id: ReservationId) -> Result<abi::Reservation, ReservationError> {
         todo!()
     }
@@ -242,5 +253,48 @@ mod tests {
             rsvp.note,
             "I'll arrive at 3pm. Please help to upgrade to executive room if possible"
         )
+    }
+
+    #[sqlx_database_tester::test(pool(variable = "migrated_pool", migrations = "../migrations"))]
+    async fn reserve_delete_should_work() {
+        let manager = ReservationManager::new(migrated_pool.clone());
+        let rsvp = Reservation::new_pending(
+            "first_id",
+            "ocean-view-room-731",
+            "2022-12-24T12:00:00-0700".parse().unwrap(),
+            "2022-12-28T12:00:00-0700".parse().unwrap(),
+            "hello",
+        );
+
+        let rsvp = manager.reserve(rsvp).await.unwrap();
+
+        assert!(!rsvp.id.is_empty());
+
+        assert!(manager.delete(rsvp.id).await.is_ok());
+    }
+
+    #[sqlx_database_tester::test(pool(variable = "migrated_pool", migrations = "../migrations"))]
+    async fn reserve_delete_not_exists_should_work() {
+        let manager = ReservationManager::new(migrated_pool.clone());
+        let rsvp = Reservation::new_pending(
+            "first_id",
+            "ocean-view-room-731",
+            "2022-12-24T12:00:00-0700".parse().unwrap(),
+            "2022-12-28T12:00:00-0700".parse().unwrap(),
+            "hello",
+        );
+
+        let rsvp = manager.reserve(rsvp).await.unwrap();
+
+        assert!(!rsvp.id.is_empty());
+        let id = rsvp.id.clone();
+
+        assert!(manager.delete(id.clone()).await.is_ok());
+        let err = manager.delete(id.clone()).await.err().unwrap();
+        assert!(manager.delete(id.clone()).await.is_err());
+        assert_eq!(
+            err.to_string(),
+            ReservationError::ReservationNotFound(id.clone()).to_string()
+        );
     }
 }

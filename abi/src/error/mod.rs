@@ -26,6 +26,9 @@ pub enum ReservationError {
 
     #[error("db error: {0}")]
     DbError(sqlx::Error),
+
+    #[error("reservation not found: {0}")]
+    ReservationNotFound(String),
 }
 
 impl From<sqlx::Error> for ReservationError {
