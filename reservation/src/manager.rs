@@ -178,4 +178,30 @@ mod tests {
 
         assert_eq!(rsvp2.status, ReservationStatus::Confirmed as i32)
     }
+
+    #[sqlx_database_tester::test(pool(variable = "migrated_pool", migrations = "../migrations"))]
+    async fn reserve_change_status_not_pending_should_do_nothing() {
+        let manager = ReservationManager::new(migrated_pool.clone());
+        let rsvp = Reservation::new_pending(
+            "first_id",
+            "ocean-view-room-731",
+            "2022-12-24T12:00:00-0700".parse().unwrap(),
+            "2022-12-28T12:00:00-0700".parse().unwrap(),
+            "hello",
+        );
+
+        let rsvp = manager.reserve(rsvp).await.unwrap();
+
+        assert!(!rsvp.id.is_empty());
+
+        let rsvp = manager.change_status(rsvp.id).await.unwrap();
+
+        assert_eq!(rsvp.status, ReservationStatus::Confirmed as i32);
+
+        let rsvp = manager.change_status(rsvp.id).await.unwrap();
+
+        assert_eq!(rsvp.status, ReservationStatus::Confirmed as i32);
+
+        println!("{rsvp:?}")
+    }
 }
