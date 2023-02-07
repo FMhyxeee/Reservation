@@ -88,8 +88,14 @@ impl Rsvp for ReservationManager {
     }
 
     // 查看某个Reservation
-    async fn get(&self, _id: ReservationId) -> Result<abi::Reservation, ReservationError> {
-        todo!()
+    async fn get(&self, id: ReservationId) -> Result<abi::Reservation, ReservationError> {
+        let id = Uuid::parse_str(&id).map_err(|_| ReservationError::InvalidReservationId(id))?;
+        let status = sqlx::query_as("SELECT * FROM rsvp.reservations WHERE id = $1")
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(status)
     }
 
     async fn query(
@@ -296,5 +302,30 @@ mod tests {
             err.to_string(),
             ReservationError::ReservationNotFound(id.clone()).to_string()
         );
+    }
+
+    #[sqlx_database_tester::test(pool(variable = "migrated_pool", migrations = "../migrations"))]
+    async fn reserve_get_reservation_should_work() {
+        let manager = ReservationManager::new(migrated_pool.clone());
+        let rsvp = Reservation::new_pending(
+            "first_id",
+            "ocean-view-room-731",
+            "2022-12-24T12:00:00-0700".parse().unwrap(),
+            "2022-12-28T12:00:00-0700".parse().unwrap(),
+            "hello",
+        );
+
+        let rsvp = manager.reserve(rsvp).await.unwrap();
+        let id = rsvp.id.clone();
+
+        assert!(!id.is_empty());
+
+        let rsvp2 = manager.get(rsvp.id).await.unwrap();
+
+        assert_eq!(rsvp2.id, id);
+        assert_eq!(rsvp2.status, ReservationStatus::Pending as i32);
+        assert_eq!(rsvp2.note, "hello");
+        assert_eq!(rsvp2.resource_id, "ocean-view-room-731");
+        assert_eq!(rsvp2.user_id, "first_id");
     }
 }
