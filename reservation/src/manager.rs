@@ -103,6 +103,24 @@ impl Rsvp for ReservationManager {
         &self,
         _query: abi::ReservationQuery,
     ) -> Result<Vec<abi::Reservation>, ReservationError> {
+        // query by ReservationQuery
+        // so we need to extract the query from the ReservationQuery
+        // when some fields are not set, we need to ignore them
+        // let rsvp = abi::Reservation::default();
+
+        // let desc = query.desc;
+        // let resource_id = if query.resource_id.is_empty() {
+        //     None
+        // } else {
+        //     Some(query.resource_id)
+        // };
+
+        // let user_id = if query.user_id.is_empty() {
+        //     None
+        // } else {
+        //     Some(query.user_id)
+        // };
+
         todo!()
     }
 }
@@ -321,13 +339,9 @@ mod tests {
 
         assert!(!id.is_empty());
 
-        let rsvp2 = manager.get(rsvp.id).await.unwrap();
+        let rsvp2 = manager.get(rsvp.id.clone()).await.unwrap();
 
-        assert_eq!(rsvp2.id, id);
-        assert_eq!(rsvp2.status, ReservationStatus::Pending as i32);
-        assert_eq!(rsvp2.note, "hello");
-        assert_eq!(rsvp2.resource_id, "ocean-view-room-731");
-        assert_eq!(rsvp2.user_id, "first_id");
+        assert_eq!(rsvp, rsvp2);
     }
 
     #[sqlx_database_tester::test(pool(variable = "migrated_pool", migrations = "../migrations"))]
