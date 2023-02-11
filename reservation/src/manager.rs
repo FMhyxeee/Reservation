@@ -1,4 +1,4 @@
-use abi::ReservationError;
+use abi::{ReservationError, Validator};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{postgres::types::PgRange, types::Uuid, PgPool, Row};
@@ -23,7 +23,7 @@ impl Rsvp for ReservationManager {
 
         // let timespan: PgRange<DateTime<Utc>> = (start..end).into();
 
-        let timespan: PgRange<DateTime<Utc>> = rsvp.get_timestamp().into();
+        let timespan: PgRange<DateTime<Utc>> = rsvp.get_timestamp();
 
         // generate a insert sql for the reservation
 
@@ -101,27 +101,28 @@ impl Rsvp for ReservationManager {
 
     async fn query(
         &self,
-        _query: abi::ReservationQuery,
+        query: abi::ReservationQuery,
     ) -> Result<Vec<abi::Reservation>, ReservationError> {
-        // query by ReservationQuery
-        // so we need to extract the query from the ReservationQuery
-        // when some fields are not set, we need to ignore them
-        // let rsvp = abi::Reservation::default();
+        let user_id = str_to_option(&query.user_id);
+        let resource_id = str_to_option(&query.resource_id);
+        let range = query.get_timespan();
+        let status = abi::ReservationStatus::from_i32(query.status)
+            .unwrap_or(abi::ReservationStatus::Pending);
 
-        // let desc = query.desc;
-        // let resource_id = if query.resource_id.is_empty() {
-        //     None
-        // } else {
-        //     Some(query.resource_id)
-        // };
+        let rsvps = sqlx::query_as(
+            "SELECT * FROM rsvp.query($1, $2, $3, $4::rsvp.reservation_status, $5, $6, $7)",
+        )
+        .bind(user_id)
+        .bind(resource_id)
+        .bind(range)
+        .bind(status.to_string())
+        .bind(query.page)
+        .bind(query.desc)
+        .bind(query.page_size)
+        .fetch_all(&self.pool)
+        .await?;
 
-        // let user_id = if query.user_id.is_empty() {
-        //     None
-        // } else {
-        //     Some(query.user_id)
-        // };
-
-        todo!()
+        Ok(rsvps)
     }
 }
 
@@ -131,10 +132,18 @@ impl ReservationManager {
     }
 }
 
+fn str_to_option(s: &str) -> Option<String> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
-    use abi::{Reservation, ReservationConflictInfo, ReservationStatus};
+    use abi::{Reservation, ReservationConflictInfo, ReservationQuery, ReservationStatus};
     use chrono::FixedOffset;
 
     use super::*;
@@ -152,17 +161,6 @@ mod tests {
             end,
             "I'll arrive at 3pm. Please help to upgrade to executive room if possible",
         );
-
-        // let rsvp = abi::Reservation {
-        //     id: "".to_string(),
-        //     user_id: "first_id".to_string(),
-        //     resource_id: "ocean-view-room-731".to_string(),
-        //     start: Some(convert_to_timestamp(start.with_timezone(&Utc))),
-        //     end: Some(convert_to_timestamp(end.with_timezone(&Utc))),
-        //     status: abi::ReservationStatus::Pending as i32,
-        //     note: "I'll arrive at 3pm. Please help to upgrade to executive room if possible"
-        //         .to_string(),
-        // };
 
         let rsvp = manager.reserve(rsvp).await.unwrap();
         assert!(!rsvp.id.is_empty());
@@ -375,5 +373,34 @@ mod tests {
             )
             .to_string()
         );
+    }
+
+    #[sqlx_database_tester::test(pool(variable = "migrated_pool", migrations = "../migrations"))]
+    async fn reservation_query_should_work() {
+        let manager = ReservationManager::new(migrated_pool.clone());
+        let rsvp = Reservation::new_pending(
+            "hyx",
+            "room-421",
+            "2022-11-20T12:00:00-0700".parse().unwrap(),
+            "2022-11-22T12:00:00-0700".parse().unwrap(),
+            "hello",
+        );
+
+        let rsvp = manager.reserve(rsvp).await.unwrap();
+
+        let query = ReservationQuery::new(
+            "hyx",
+            "room-421",
+            Some("2022-11-20T12:00:00-0700".parse().unwrap()),
+            Some("2022-11-30T12:00:00-0700".parse().unwrap()),
+            ReservationStatus::Pending,
+            1,
+            true,
+            10,
+        );
+
+        let result = manager.query(query).await.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], rsvp);
     }
 }

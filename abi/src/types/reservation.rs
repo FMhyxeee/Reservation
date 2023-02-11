@@ -1,4 +1,4 @@
-use std::ops::{Bound, Range};
+use std::ops::Bound;
 
 use chrono::{DateTime, FixedOffset, Utc};
 use sqlx::{
@@ -8,8 +8,8 @@ use sqlx::{
 };
 
 use crate::{
-    convert_to_timestamp, convert_to_utc_time, Reservation, ReservationError, ReservationStatus,
-    RsvpStatus,
+    convert_to_timestamp, convert_to_utc_time, get_timespan, Reservation, ReservationError,
+    ReservationStatus, RsvpStatus, Validator,
 };
 
 impl Reservation {
@@ -31,7 +31,13 @@ impl Reservation {
         }
     }
 
-    pub fn validate(&self) -> Result<(), ReservationError> {
+    pub fn get_timestamp(&self) -> PgRange<DateTime<Utc>> {
+        get_timespan(self.start.as_ref(), self.end.as_ref()).unwrap()
+    }
+}
+
+impl Validator for Reservation {
+    fn validate(&self) -> Result<(), ReservationError> {
         if self.user_id.is_empty() {
             return Err(ReservationError::InvalidUserId(self.user_id.clone()));
         }
@@ -54,13 +60,6 @@ impl Reservation {
         }
 
         Ok(())
-    }
-
-    pub fn get_timestamp(&self) -> Range<DateTime<Utc>> {
-        let start = convert_to_utc_time(self.start.as_ref().unwrap().clone());
-        let end = convert_to_utc_time(self.end.as_ref().unwrap().clone());
-
-        Range { start, end }
     }
 }
 
