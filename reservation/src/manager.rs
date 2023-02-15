@@ -143,8 +143,9 @@ fn str_to_option(s: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
 
-    use abi::{Reservation, ReservationConflictInfo, ReservationQuery, ReservationStatus};
+    use abi::{Reservation, ReservationConflictInfo, ReservationQueryBuilder, ReservationStatus};
     use chrono::FixedOffset;
+    use prost_types::Timestamp;
 
     use super::*;
 
@@ -388,16 +389,20 @@ mod tests {
 
         let rsvp = manager.reserve(rsvp).await.unwrap();
 
-        let query = ReservationQuery::new(
-            "hyx",
-            "room-421",
-            Some("2022-11-20T12:00:00-0700".parse().unwrap()),
-            Some("2022-11-30T12:00:00-0700".parse().unwrap()),
-            ReservationStatus::Pending,
-            1,
-            true,
-            10,
-        );
+        let query = ReservationQueryBuilder::default()
+            .user_id("hyx")
+            // .resource_id("room-421")
+            .start("2022-11-20T12:00:00-0700".parse::<Timestamp>().unwrap())
+            .end("2022-11-30T12:00:00-0700".parse::<Timestamp>().unwrap())
+            .status(ReservationStatus::Pending as i32)
+            // .page(1)
+            // .desc(true)
+            // .page_size(10)
+            .build()
+            .unwrap();
+
+        println!("{query:?}");
+        println!("{rsvp:?}");
 
         let result = manager.query(query).await.unwrap();
         assert_eq!(result.len(), 1);

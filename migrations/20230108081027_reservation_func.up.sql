@@ -10,6 +10,14 @@ CREATE OR REPLACE FUNCTION rsvp.query(
 DECLARE
     _sql text;
 BEGIN
+    -- if page_size not between 10 and 100, set it to 10
+    IF page_size < 10 OR page_size > 100 THEN
+        page_size := 10;
+    END IF;
+
+    IF page < 1 THEN
+        page := 1;
+    END IF;
     -- format the query based on parameters
     _sql := format(
         'SELECT * FROM rsvp.reservations WHERE %L @> timespan AND %s AND %s ORDER BY lower(timespan) %s LIMIT %L::Integer OFFSET %L::Integer',
