@@ -19,7 +19,7 @@ pub enum ReservationError {
     InvalidResourceId(String),
 
     #[error("invalid reservation id: {0}")]
-    InvalidReservationId(String),
+    InvalidReservationId(i64),
 
     #[error("reservation conflict")]
     ConflictReservation(ReservationConflictInfo),
@@ -28,7 +28,7 @@ pub enum ReservationError {
     DbError(sqlx::Error),
 
     #[error("reservation not found: {0}")]
-    ReservationNotFound(String),
+    ReservationNotFound(i64),
 
     #[error("Not Found Row")]
     NotFoundRow,

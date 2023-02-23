@@ -9,6 +9,10 @@ pub use pb::*;
 pub use types::*;
 pub use utils::*;
 
+pub type ReservationId = i64;
+pub type UserId = String;
+pub type ResourceId = String;
+
 pub trait Validator {
     fn validate(&self) -> Result<(), ReservationError>;
 }
@@ -20,4 +24,13 @@ pub enum RsvpStatus {
     Pending,
     Confirmed,
     Blocked,
+}
+
+impl Validator for ReservationId {
+    fn validate(&self) -> Result<(), ReservationError> {
+        if *self <= 0 {
+            return Err(ReservationError::InvalidReservationId(*self));
+        }
+        Ok(())
+    }
 }

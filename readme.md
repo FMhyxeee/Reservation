@@ -13,3 +13,9 @@ git remote add origin https://github.com/FMhyxeee/reservation.git
 git branch -M master
 git push -u origin master
 ```
+
+
+## dump sql
+```shell
+pg_dump -s postgres://hyx:hyx@localhost:5432/reservation > reservation/fixtures/dump.sql
+```
