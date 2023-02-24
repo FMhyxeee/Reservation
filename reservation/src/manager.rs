@@ -128,6 +128,30 @@ impl Rsvp for ReservationManager {
 
         Ok(rsvps)
     }
+
+    async fn filter(
+        &self,
+        filter: abi::ReservationFilter,
+    ) -> Result<Vec<abi::Reservation>, ReservationError> {
+        let user_id = str_to_option(&filter.user_id);
+        let resource_id = str_to_option(&filter.resource_id);
+        let status = abi::ReservationStatus::from_i32(filter.status)
+            .unwrap_or(abi::ReservationStatus::Pending);
+
+        let rsvps = sqlx::query_as(
+            "SELECT * FROM rsvp.filter($1, $2, $3::rsvp.reservation_status, $4, $5, $6::int)",
+        )
+        .bind(user_id)
+        .bind(resource_id)
+        .bind(status.to_string())
+        .bind(filter.cursor)
+        .bind(filter.desc)
+        .bind(filter.page_size as i32)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rsvps)
+    }
 }
 
 impl ReservationManager {
@@ -147,7 +171,10 @@ fn str_to_option(s: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
 
-    use abi::{Reservation, ReservationConflictInfo, ReservationQueryBuilder, ReservationStatus};
+    use abi::{
+        Reservation, ReservationConflictInfo, ReservationFilterBuilder, ReservationQueryBuilder,
+        ReservationStatus,
+    };
     use chrono::FixedOffset;
     use prost_types::Timestamp;
 
@@ -403,5 +430,42 @@ mod tests {
         let result = manager.query(query).await.unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], rsvp);
+    }
+
+    #[sqlx_database_tester::test(pool(variable = "migrated_pool", migrations = "../migrations"))]
+    async fn reservation_filter_should_work() {
+        let manager = ReservationManager::new(migrated_pool.clone());
+
+        let rsvp = Reservation::new_pending(
+            "hyx",
+            "room-421",
+            "2022-11-20T12:00:00-0700".parse().unwrap(),
+            "2022-11-22T12:00:00-0700".parse().unwrap(),
+            "hello",
+        );
+
+        let rsvp1 = manager.reserve(rsvp).await.unwrap();
+
+        let rsvp = Reservation::new_pending(
+            "hyx",
+            "room-421",
+            "2022-11-22T12:00:00-0700".parse().unwrap(),
+            "2022-11-24T12:00:00-0700".parse().unwrap(),
+            "hello",
+        );
+
+        let rsvp2 = manager.reserve(rsvp).await.unwrap();
+
+        let query = ReservationFilterBuilder::default()
+            .user_id("hyx")
+            .status(ReservationStatus::Pending as i32)
+            .page_size(10)
+            .build()
+            .unwrap();
+
+        let rsvps = manager.filter(query).await.unwrap();
+
+        assert_eq!(rsvps.len(), 2);
+        assert_eq!(rsvps, vec![rsvp1, rsvp2]);
     }
 }

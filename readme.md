@@ -19,3 +19,18 @@ git push -u origin master
 ```shell
 pg_dump -s postgres://hyx:hyx@localhost:5432/reservation > reservation/fixtures/dump.sql
 ```
+
+
+## insert sql
+```sql
+    insert into rsvp.reservations(user_id, resource_id, timespan, note) values ('hyx','room-421', '("2022-11-22","2022-11-2
+ 3")','你好啊，我来了');
+
+    insert into rsvp.reservations(user_id, resource_id, timespan, note) values ('hyx','room-421', '("2022-11-22","2022-11-2
+ 3")','你好啊，我来了');
+
+    select * from rsvp.query('hyx', 'room-421', '("2022-11-20","2022-12-21")','pending', 1, true, 2);
+
+
+    select * from rsvp.filter('hyx', null,'pending', 1, true, 10);
+```

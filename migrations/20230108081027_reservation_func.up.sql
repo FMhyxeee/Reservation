@@ -49,3 +49,61 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION rsvp.filter(
+    uid text,
+    rid text,
+    status rsvp.reservation_status,
+    curosr bigint DEFAULT NULL,
+    is_desc bool DEFAULT FALSE,
+    page_size integer DEFAULT 10
+) RETURNS TABLE(LIKE rsvp.reservations )AS $$
+DECLARE
+    _sql text;
+    _offset bigint;
+BEGIN
+
+    IF page_size < 10 OR page_size > 100 THEN
+        page_size := 10;
+    END IF;
+
+    -- if the cursor is null, set it to 1
+    -- if is_desc is true, else set it to max int
+
+    IF curosr IS NULL THEN
+        IF is_desc THEN
+            curosr := 9223372036854775807;
+        ELSE
+            curosr := 0;
+        END IF;
+    END IF;
+    -- format the query based on parameters
+    _sql := format(
+        'SELECT * FROM rsvp.reservations WHERE %s AND status = %L AND %s ORDER BY id %s LIMIT %L::Integer',
+        CASE
+            WHEN is_desc THEN 'id < ' || quote_literal(curosr)
+            ELSE 'id > ' || quote_literal(curosr)
+        END,
+        status,
+        CASE
+            WHEN uid IS NULL AND rid IS NULL THEN 'TRUE'
+            WHEN uid IS NULL THEN 'resource_id = ' || quote_literal(rid)
+            WHEN rid IS NULL THEN 'user_id = ' || quote_literal(uid)
+            ELSE 'user_id =' || quote_literal(uid) ||'AND resource_id =' || quote_literal(rid)
+        END,
+        CASE
+            WHEN is_desc THEN 'DESC'
+            ELSE 'ASC'
+        END,
+        page_size
+    );
+
+    -- execute the query
+    RETURN QUERY EXECUTE _sql;
+
+    -- log the sql
+    RAISE NOTICE '%', _sql;
+
+END;
+$$ LANGUAGE plpgsql;

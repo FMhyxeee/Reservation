@@ -143,25 +143,32 @@ pub struct QueryRequest {
     pub query: ::core::option::Option<ReservationQuery>,
 }
 /// query reservations, order by reservation id
+#[derive(derive_builder::Builder)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReservationFilter {
     /// resource id for the reservation query. If empty, query all resources
     #[prost(string, tag = "1")]
+    #[builder(setter(into), default)]
     pub resource_id: ::prost::alloc::string::String,
     /// user id for the reservation query. If empty, query all users
     #[prost(string, tag = "2")]
+    #[builder(setter(into), default)]
     pub user_id: ::prost::alloc::string::String,
     /// use status to filter result. If UNKNOWN, return all reservations
     #[prost(enumeration = "ReservationStatus", tag = "3")]
+    #[builder(setter(into), default)]
     pub status: i32,
     #[prost(int64, optional, tag = "4")]
+    #[builder(setter(into), default)]
     pub cursor: ::core::option::Option<i64>,
     /// page size for the query
     #[prost(int64, tag = "5")]
+    #[builder(setter(into), default)]
     pub page_size: i64,
     /// sort direction
     #[prost(bool, tag = "6")]
+    #[builder(setter(into), default)]
     pub desc: bool,
 }
 /// To query reservations, send a QueryRequest

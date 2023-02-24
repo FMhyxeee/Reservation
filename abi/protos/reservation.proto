@@ -179,4 +179,5 @@ service ReservationService {
     rpc filter(FilterRequest) returns (FilterResponse);
     // another system could monitor newly added/confirmed/cancelled reservations
     rpc listen(ListenRequest) returns (stream Reservation);
+
 }
