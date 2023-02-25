@@ -55,7 +55,7 @@ CREATE OR REPLACE FUNCTION rsvp.filter(
     uid text,
     rid text,
     status rsvp.reservation_status,
-    curosr bigint DEFAULT NULL,
+    cursor bigint DEFAULT NULL,
     is_desc bool DEFAULT FALSE,
     page_size integer DEFAULT 10
 ) RETURNS TABLE(LIKE rsvp.reservations )AS $$
@@ -68,22 +68,22 @@ BEGIN
         page_size := 10;
     END IF;
 
-    -- if the cursor is null, set it to 1
+    -- if the cursor is null or less than 0, set it to 1
     -- if is_desc is true, else set it to max int
 
-    IF curosr IS NULL THEN
+    IF cursor IS NULL OR cursor < 0 THEN
         IF is_desc THEN
-            curosr := 9223372036854775807;
+            cursor := 9223372036854775807;
         ELSE
-            curosr := 0;
+            cursor := 0;
         END IF;
     END IF;
     -- format the query based on parameters
     _sql := format(
         'SELECT * FROM rsvp.reservations WHERE %s AND status = %L AND %s ORDER BY id %s LIMIT %L::Integer',
         CASE
-            WHEN is_desc THEN 'id < ' || quote_literal(curosr)
-            ELSE 'id > ' || quote_literal(curosr)
+            WHEN is_desc THEN 'id <= ' || quote_literal(cursor)
+            ELSE 'id >= ' || quote_literal(cursor)
         END,
         status,
         CASE
@@ -96,7 +96,7 @@ BEGIN
             WHEN is_desc THEN 'DESC'
             ELSE 'ASC'
         END,
-        page_size
+        page_size + 1
     );
 
     -- execute the query

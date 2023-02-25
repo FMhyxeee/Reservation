@@ -1,4 +1,4 @@
-use abi::ReservationError;
+use abi::{FilterPager, ReservationError};
 use async_trait::async_trait;
 
 use sqlx::PgPool;
@@ -39,5 +39,5 @@ pub trait Rsvp {
     async fn filter(
         &self,
         query: abi::ReservationFilter,
-    ) -> Result<Vec<abi::Reservation>, ReservationError>;
+    ) -> Result<(Vec<abi::Reservation>, FilterPager), ReservationError>;
 }

@@ -1,4 +1,4 @@
-use abi::{ReservationError, ReservationId, Validator};
+use abi::{FilterPager, Reservation, ReservationError, ReservationId, Validator};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{postgres::types::PgRange, PgPool, Row};
@@ -132,13 +132,19 @@ impl Rsvp for ReservationManager {
     async fn filter(
         &self,
         filter: abi::ReservationFilter,
-    ) -> Result<Vec<abi::Reservation>, ReservationError> {
+    ) -> Result<(Vec<abi::Reservation>, FilterPager), ReservationError> {
         let user_id = str_to_option(&filter.user_id);
         let resource_id = str_to_option(&filter.resource_id);
         let status = abi::ReservationStatus::from_i32(filter.status)
             .unwrap_or(abi::ReservationStatus::Pending);
 
-        let rsvps = sqlx::query_as(
+        let page_size = if filter.page_size < 10 || filter.page_size > 100 {
+            10
+        } else {
+            filter.page_size
+        };
+
+        let rsvps: Vec<Reservation> = sqlx::query_as(
             "SELECT * FROM rsvp.filter($1, $2, $3::rsvp.reservation_status, $4, $5, $6::int)",
         )
         .bind(user_id)
@@ -146,11 +152,34 @@ impl Rsvp for ReservationManager {
         .bind(status.to_string())
         .bind(filter.cursor)
         .bind(filter.desc)
-        .bind(filter.page_size as i32)
+        .bind(page_size as i32)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rsvps)
+        let has_prev = !rsvps.is_empty() && rsvps[0].id == filter.cursor;
+        let start = if has_prev { 1 } else { 0 };
+
+        let has_next = rsvps.len() - start > filter.page_size as usize;
+        let end = if has_next {
+            rsvps.len() - 1
+        } else {
+            rsvps.len()
+        };
+
+        let prev = if has_prev { rsvps[start - 1].id } else { -1 };
+
+        let next = if has_next { rsvps[end - 1].id } else { -1 };
+
+        // TODO: optimize this clone
+        let result = rsvps[start..end].to_vec();
+
+        let pager = FilterPager {
+            next,
+            prev,
+            // TODO: how to get total count?
+            total: 0,
+        };
+        Ok((result, pager))
     }
 }
 
@@ -463,9 +492,11 @@ mod tests {
             .build()
             .unwrap();
 
-        let rsvps = manager.filter(query).await.unwrap();
+        let (rsvps, pager) = manager.filter(query).await.unwrap();
 
         assert_eq!(rsvps.len(), 2);
         assert_eq!(rsvps, vec![rsvp1, rsvp2]);
+        assert_eq!(pager.prev, -1);
+        assert_eq!(pager.next, -1);
     }
 }
