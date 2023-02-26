@@ -1,7 +1,10 @@
-use abi::{FilterPager, Reservation, ReservationError, ReservationId, Validator};
+use abi::{DbConfig, FilterPager, Reservation, ReservationError, ReservationId, Validator};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use sqlx::{postgres::types::PgRange, PgPool, Row};
+use sqlx::{
+    postgres::{types::PgRange, PgPoolOptions},
+    PgPool, Row,
+};
 
 use crate::{ReservationManager, Rsvp};
 
@@ -186,6 +189,16 @@ impl Rsvp for ReservationManager {
 impl ReservationManager {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    pub async fn from_config(config: &DbConfig) -> Result<Self, ReservationError> {
+        let url = config.to_url();
+        let pool = PgPoolOptions::default()
+            .max_connections(config.max_connections)
+            .connect(&url)
+            .await
+            .unwrap();
+        Ok(Self::new(pool))
     }
 }
 

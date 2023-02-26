@@ -68,3 +68,31 @@ impl From<sqlx::Error> for ReservationError {
         }
     }
 }
+
+impl From<ReservationError> for tonic::Status {
+    fn from(e: ReservationError) -> Self {
+        match e {
+            ReservationError::Unknown => tonic::Status::unknown("unknown error"),
+            ReservationError::InvalidTimespan => {
+                tonic::Status::invalid_argument("invalid timespan")
+            }
+            ReservationError::InvalidUserId(v) => {
+                tonic::Status::invalid_argument(format!("invalid userid: {}", v))
+            }
+            ReservationError::InvalidResourceId(v) => {
+                tonic::Status::invalid_argument(format!("invalid resource id: {}", v))
+            }
+            ReservationError::InvalidReservationId(v) => {
+                tonic::Status::invalid_argument(format!("invalid reservation id: {}", v))
+            }
+            ReservationError::ConflictReservation(v) => {
+                tonic::Status::failed_precondition(format!("reservation conflict: {:?}", v))
+            }
+            ReservationError::DbError(e) => tonic::Status::internal(format!("db error: {}", e)),
+            ReservationError::ReservationNotFound(v) => {
+                tonic::Status::not_found(format!("reservation not found: {}", v))
+            }
+            ReservationError::NotFoundRow => tonic::Status::not_found("Not Found Row"),
+        }
+    }
+}

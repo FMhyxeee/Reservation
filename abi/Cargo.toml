@@ -14,6 +14,12 @@ sqlx = { version = "0.6.2", features = ["runtime-tokio-rustls", "postgres", "chr
 thiserror = "1.0.38"
 regex = "1.7.1"
 derive_builder = "0.12.0"
+anyhow = "1.0.69"
+serde = { version = "1.0.152", features = ["derive"] }
+tokio = { version = "1.26.0", features = ["full"] }
+serde_yaml = "0.9.18"
+features = "0.10.0"
+derive = "1.0.0"
 
 
 
