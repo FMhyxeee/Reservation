@@ -2,9 +2,9 @@
 db:
   host: localhost
   port: 5432
-  user: hyx
-  password: hyx
-  dbname: reservations
+  user: postgres
+  password: postgres
+  dbname: reservation
   max_connections: 5
 server:
   host: localhost

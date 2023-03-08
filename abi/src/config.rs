@@ -1,6 +1,7 @@
+use std::fs;
+
 use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
-use tokio::fs;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
@@ -30,10 +31,8 @@ pub struct ServerConfig {
 }
 
 impl Config {
-    pub async fn load(filename: &str) -> Result<Self> {
-        let config = fs::read_to_string(filename)
-            .await
-            .expect("Failed to read config file");
+    pub fn load(filename: &str) -> Result<Self> {
+        let config = fs::read_to_string(filename).expect("Failed to read config file");
         Ok(serde_yaml::from_str(&config).expect("Failed to parse config file"))
     }
 }
@@ -52,6 +51,17 @@ impl DbConfig {
             )
         }
     }
+
+    pub fn server_url(&self) -> String {
+        if self.password.is_empty() {
+            format!("postgres://{}@{}:{}", self.user, self.host, self.port)
+        } else {
+            format!(
+                "postgres://{}:{}@{}:{}",
+                self.user, self.password, self.host, self.port
+            )
+        }
+    }
 }
 
 #[cfg(test)]
@@ -60,9 +70,7 @@ mod tests {
 
     #[tokio::test]
     async fn config_should_work() {
-        let config = Config::load("../service/fixtures/config.yml")
-            .await
-            .unwrap();
+        let config = Config::load("../service/fixtures/config.yml").unwrap();
         println!("{:?}", config);
         assert_eq!(
             config,
@@ -70,9 +78,9 @@ mod tests {
                 db: DbConfig {
                     host: "localhost".to_string(),
                     port: 5432,
-                    user: "hyx".to_string(),
-                    password: "hyx".to_string(),
-                    dbname: "reservations".to_string(),
+                    user: "postgres".to_string(),
+                    password: "postgres".to_string(),
+                    dbname: "reservation".to_string(),
                     max_connections: 5,
                 },
                 server: ServerConfig {

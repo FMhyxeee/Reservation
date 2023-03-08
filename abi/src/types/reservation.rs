@@ -20,7 +20,7 @@ impl Reservation {
         note: impl Into<String>,
     ) -> Self {
         Self {
-            id: 0,
+            id: 1,
             user_id: uid.into(),
             status: ReservationStatus::Pending as i32,
             resource_id: rid.into(),

@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    let config = Config::load(filename.as_str()).await?;
+    let config = Config::load(filename.as_str())?;
     println!("{config:?}");
 
     let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port).parse()?;
